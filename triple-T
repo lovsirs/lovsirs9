@@ -1,0 +1,182 @@
+local Players = game:GetService("Players")
+local InsertService = game:GetService("InsertService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local RootPart = Character:WaitForChild("HumanoidRootPart")
+local Humanoid = Character:WaitForChild("Humanoid")
+Humanoid.RequiresNeck = false
+
+local tungContainer = nil  
+
+local function isTung(obj)
+    return tungContainer and obj:IsDescendantOf(tungContainer)
+end
+
+local function nukeAppearance()
+    for _, v in ipairs(Character:GetDescendants()) do
+        if isTung(v) then continue end
+        if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then
+            v.Transparency = 1
+        elseif v:IsA("Decal") or v:IsA("Texture") or v:IsA("Accessory") or
+               v:IsA("Clothing") or v:IsA("ShirtGraphic") or v:IsA("CharacterMesh") then
+            v:Destroy()
+        elseif v:IsA("SpecialMesh") or v:IsA("BlockMesh") then
+            v.Scale = Vector3.new(0,0,0)
+        end
+    end
+    local head = Character:FindFirstChild("Head")
+    if head and not isTung(head) then head:Destroy() end
+end
+nukeAppearance()
+
+Character.DescendantAdded:Connect(function(d)
+    if isTung(d) then return end
+    if d.Name == "Head" or d:IsA("Decal") or d:IsA("Texture") or d:IsA("Accessory") or d:IsA("Clothing") then
+        d:Destroy()
+    elseif d:IsA("BasePart") and d.Name ~= "HumanoidRootPart" then
+        d.Transparency = 1
+        local m = d:FindFirstChildOfClass("DataModelMesh")
+        if m then m.Scale = Vector3.new(0,0,0) end
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    for _, part in ipairs(Character:GetChildren()) do
+        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" and not isTung(part) then
+            part.LocalTransparencyModifier = 1
+        end
+    end
+end)
+
+local assetid = 138151705692565
+
+local function fetchAsset()
+    
+    local ok, res = pcall(function()
+        return game:GetObjects("rbxassetid://"..assetid)
+    end)
+    if ok and res and res[1] then
+        return res[1]
+    end
+    
+    ok, res = pcall(function()
+        return InsertService:LoadAsset(assetid)
+    end)
+    if ok and res then
+        return res
+    end
+    
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if obj:IsA("Model") and obj.Name:lower():find("tung") then
+            return obj:Clone()
+        end
+    end
+    return nil
+end
+
+local function weldModelToCharacter(model)
+    if model:IsA("Model") then
+        model:PivotTo(RootPart.CFrame)
+        for _, part in ipairs(model:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+                part.Massless = true
+                local weld = Instance.new("WeldConstraint")
+                weld.Part0 = RootPart
+                weld.Part1 = part
+                weld.Parent = part
+            end
+        end
+    elseif model:IsA("BasePart") then
+        model.CFrame = RootPart.CFrame
+        model.CanCollide = false
+        model.Massless = true
+        local weld = Instance.new("WeldConstraint")
+        weld.Part0 = RootPart
+        weld.Part1 = model
+        weld.Parent = model
+    end
+end
+
+local function applyTung()
+    local asset = fetchAsset()
+    if asset then
+        
+        local container = Instance.new("Model")
+        container.Name = "TungContainer"
+        container.Parent = Character
+        tungContainer = container
+
+        if asset:IsA("Model") then
+            asset.Parent = container
+            weldModelToCharacter(asset)
+        elseif asset:IsA("BasePart") then
+            asset.Parent = container
+            weldModelToCharacter(asset)
+        elseif asset:IsA("Folder") then
+            
+            for _, child in ipairs(asset:GetChildren()) do
+                child.Parent = container
+            end
+            weldModelToCharacter(container)  
+        end
+
+        
+        local function onRemoved()
+            tungContainer = nil
+            task.wait(0.1)  
+            applyTung()      
+        end
+        container.AncestryChanged:Connect(function(_, parent)
+            if not parent then
+                onRemoved()
+            end
+        end)
+        container:GetPropertyChangedSignal("Parent"):Connect(function()
+            if not container.Parent then
+                onRemoved()
+            end
+        end)
+
+        RunService.Heartbeat:Connect(function()
+            if tungContainer and tungContainer.Parent then
+                for _, part in ipairs(tungContainer:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                        part.Massless = true
+                        
+                        if not part:FindFirstChildOfClass("WeldConstraint") then
+                            local weld = Instance.new("WeldConstraint")
+                            weld.Part0 = RootPart
+                            weld.Part1 = part
+                            weld.Parent = part
+                        end
+                    end
+                end
+            end
+        end)
+
+        print("tung tung made by die in hell uwu:3")
+        return true
+    else
+        warn("wrong id")
+        return false
+    end
+end
+
+if not applyTung() then
+    warn("wrong id")
+end
+
+LocalPlayer.CharacterAdded:Connect(function(newChar)
+    Character = newChar
+    RootPart = Character:WaitForChild("HumanoidRootPart")
+    Humanoid = Character:WaitForChild("Humanoid")
+    Humanoid.RequiresNeck = false
+    nukeAppearance()
+    task.wait(0.2)  
+    applyTung()
+end)
